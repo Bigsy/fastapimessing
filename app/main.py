@@ -1,12 +1,27 @@
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
-from . import crud, models, schemas
-from .database import SessionLocal, engine
+from .dependencies import get_query_token, get_token_header
+
+from . import schemas
+from .internal import admin
+from .routers import items, users
+from app import crud, models
+from app.database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(dependencies=[Depends(get_query_token)])
+
+app.include_router(users.router)
+app.include_router(items.router)
+app.include_router(
+    admin.router,
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(get_token_header)],
+    responses={418: {"description": "I'm a teapot"}},
+)
 
 
 # Dependency
@@ -16,6 +31,11 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello Bigger Applications!"}
 
 
 @app.post("/users/", response_model=schemas.User)
@@ -48,6 +68,6 @@ def create_item_for_user(
 
 
 @app.get("/items/", response_model=list[schemas.Item])
-def read_items(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_items_db(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     items = crud.get_items(db, skip=skip, limit=limit)
     return items
