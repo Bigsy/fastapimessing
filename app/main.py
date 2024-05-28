@@ -1,5 +1,6 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from sqlalchemy.orm import Session
+from typing import Annotated
 
 from .dependencies import get_query_token, get_token_header
 
@@ -8,6 +9,7 @@ from .internal import admin
 from .routers import items, users, background
 from app import crud, models
 from app.database import SessionLocal, engine
+from pydantic import BaseModel
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -24,6 +26,13 @@ app.include_router(
     responses={418: {"description": "I'm a teapot"}},
 )
 
+fake_db = {
+    "foo": {"id": "foo", "title": "Foo", "description": "There goes my hero"},
+    "bar": {"id": "bar", "title": "Bar", "description": "The bartenders"},
+}
+
+fake_secret_token = "coneofsilence"
+
 
 # Dependency
 def get_db():
@@ -32,6 +41,21 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+class Item(BaseModel):
+    id: str
+    title: str
+    description: str | None = None
+
+
+@app.get("/wibble/{wibble_id}", response_model=Item)
+async def read_main(wibble_id: str, x_token: Annotated[str, Header()]):
+    if x_token != fake_secret_token:
+        raise HTTPException(status_code=400, detail="Invalid X-Token header")
+    if wibble_id not in fake_db:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return fake_db[wibble_id]
 
 
 @app.get("/")
