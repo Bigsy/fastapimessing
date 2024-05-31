@@ -1,9 +1,8 @@
 from fastapi import Depends, FastAPI, Header, HTTPException
 from sqlalchemy.orm import Session
 from typing import Annotated
-
 from .dependencies import get_query_token, get_token_header
-
+import httpx
 from . import schemas
 from .internal import admin
 from .routers import items, users, background
@@ -61,6 +60,12 @@ async def read_main(wibble_id: str, x_token: Annotated[str, Header()]):
 @app.get("/")
 async def root():
     return {"message": "Hello Bigger Applications!"}
+
+
+@app.get("/http/")
+async def gethttp():
+    r = httpx.get('https://api.github.com/events')
+    return r.json()
 
 
 @app.post("/users/", response_model=schemas.User)
